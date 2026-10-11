@@ -49,6 +49,12 @@ test('PHP classes and service methods navigate to PHP declarations', async () =>
   const methods = await workspace.definition(uri('config.neon'), at('config.neon', '@importer::import', 14));
   assert.equal(methods[0].uri, uri('src/Service/ProductImporter.php'));
   assert.equal(methods[0].range.start.line, 6);
+  const file = uri('class-key.neon');
+  const content = 'services:\n    App\\Service\\ProductImporter:\n';
+  workspace.update(file, content);
+  const keyedClass = await workspace.definition(file, { line: 1, character: 10 });
+  assert.equal(keyedClass[0].uri, uri('src/Service/ProductImporter.php'));
+  workspace.close(file);
 });
 
 test('unsaved edits update links and include cycles terminate', async () => {

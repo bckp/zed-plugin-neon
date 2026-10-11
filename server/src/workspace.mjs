@@ -124,8 +124,8 @@ function parseNeon(uri, text, parser) {
     if (section === 'services') {
       for (const child of record.children) {
         const factory = child.children.find(item => ['factory', 'class', 'type'].includes(item.name));
-        const candidate = factory?.value ?? child.value;
-        const nameNode = candidate && [...walk(candidate)].find(node => scalarTypes.has(node.type));
+        const candidate = factory?.value ?? child.value ?? child.key;
+        const nameNode = candidate === child.key ? candidate : candidate && [...walk(candidate)].find(node => scalarTypes.has(node.type));
         const value = nameNode ? valueOf(nameNode) : '';
         const reference = serviceReference(value) ?? classReference(value, nameNode?.type === 'entity_name');
         if (!child.key && reference?.kind !== 'class') continue;

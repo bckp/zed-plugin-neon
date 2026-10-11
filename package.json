@@ -6,7 +6,8 @@
   "license": "MIT",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test": "node --test server/test/*.test.mjs"
+    "test": "node --test server/test/*.test.mjs",
+    "test:lsp": "node scripts/smoke-lsp.mjs"
   },
   "dependencies": {
     "fast-glob": "3.3.3",

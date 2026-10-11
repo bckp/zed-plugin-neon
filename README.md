@@ -39,6 +39,7 @@ pnpm install
 rustup target add wasm32-wasip2
 pnpm run build
 pnpm test
+pnpm run test:lsp
 ~~~
 
 The build script finds wasi-sdk in Zed's extension cache. A different installation can be selected with WASI_SDK_PATH.
@@ -46,8 +47,8 @@ The build script finds wasi-sdk in Zed's extension cache. A different installati
 For grammar changes:
 
 ~~~fish
-pnpm --dir tree-sitter-neon run generate
-pnpm --dir tree-sitter-neon test
+pnpm --filter tree-sitter-neon run generate
+pnpm --filter tree-sitter-neon test
 pnpm run build
 ~~~
 
