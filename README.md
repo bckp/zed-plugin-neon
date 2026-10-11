@@ -1,5 +1,7 @@
 # NEON For Zed
 
+[![CI](https://github.com/bckp/zed-plugin-neon/actions/workflows/ci.yml/badge.svg)](https://github.com/bckp/zed-plugin-neon/actions/workflows/ci.yml)
+
 NEON syntax highlighting and navigation for Nette configuration files.
 
 ## Features
@@ -66,6 +68,17 @@ Commit and push the generated grammar sources, then update [grammars.neon].rev i
 For offline grammar development, temporarily set [grammars.neon].repository to a file:// URL for your local checkout and rev to a committed local revision. Restore the public URL and pinned commit before publishing.
 
 Rebuild the extension in Zed after changing server code or bundled assets.
+
+## Continuous Integration
+
+GitHub Actions runs on pushes and pull requests, and can also be started manually. It checks:
+
+- Navigation tests, including include graphs, services, PHP classes, and parameter overrides.
+- Tree-sitter grammar generation, committed parser consistency, and corpus tests.
+- A fresh parser and server build, followed by a real LSP stdio smoke test.
+- The Rust extension release build for wasm32-wasip2.
+
+CI uses Node.js 22, the pnpm version pinned in package.json, and WASI SDK 25 with a verified SHA-256 checksum. Project commands run in Fish. The workflow has read-only repository permissions and does not publish releases.
 
 ## Navigation Details
 

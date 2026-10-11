@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-build:
+    name: Tests and WASM Build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: fish --no-config {0}
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install Fish
+        shell: sh
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes fish
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          package-manager-cache: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          cache: true
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test navigation
+        run: pnpm test
+
+      - name: Generate grammar
+        run: pnpm --filter tree-sitter-neon run generate
+
+      - name: Check generated parser
+        run: git diff --exit-code -- tree-sitter-neon/src
+
+      - name: Test grammar corpus
+        run: pnpm --filter tree-sitter-neon test
+
+      - name: Install WASI SDK
+        env:
+          WASI_SDK_PATH: ${{ runner.temp }}/wasi-sdk-25.0-x86_64-linux
+          WASI_SDK_SHA256: 52640dde13599bf127a95499e61d6d640256119456d1af8897ab6725bcf3d89c
+        run: |
+          curl --fail --location --retry 3 https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-25/wasi-sdk-25.0-x86_64-linux.tar.gz --output "$RUNNER_TEMP/wasi-sdk.tar.gz"; or exit 1
+          printf '%s  %s\n' "$WASI_SDK_SHA256" "$RUNNER_TEMP/wasi-sdk.tar.gz" | sha256sum --check; or exit 1
+          tar -xzf "$RUNNER_TEMP/wasi-sdk.tar.gz" -C "$RUNNER_TEMP"; or exit 1
+          test -x "$WASI_SDK_PATH/bin/clang"
+
+      - name: Build parser and navigation server
+        env:
+          WASI_SDK_PATH: ${{ runner.temp }}/wasi-sdk-25.0-x86_64-linux
+        run: pnpm run build
+
+      - name: Test bundled LSP over stdio
+        run: pnpm run test:lsp
+
+      - name: Set up Rust
+        run: rustup toolchain install stable --profile minimal --target wasm32-wasip2
+
+      - name: Build Zed extension
+        run: cargo +stable build --locked --release --target wasm32-wasip2
