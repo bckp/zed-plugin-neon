@@ -15,7 +15,7 @@ connection.onInitialize(async params => {
     ?? (params.rootUri ? [fileURLToPath(params.rootUri)] : [process.cwd()]);
   workspace = await Workspace.create(roots, assets);
   return {
-    serverInfo: { name: 'NEON Navigation', version: '0.1.0' },
+    serverInfo: { name: 'NEON Navigation', version: '1.0.0' },
     capabilities: {
       textDocumentSync: TextDocumentSyncKind.Full,
       definitionProvider: true,

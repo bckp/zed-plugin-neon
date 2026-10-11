@@ -1,6 +1,6 @@
 id = "neon"
 name = "NEON"
-version = "0.1.0"
+version = "1.0.0"
 schema_version = 1
 authors = ["bckp"]
 description = "NEON syntax highlighting and navigation for includes, parameters, services, and PHP classes"

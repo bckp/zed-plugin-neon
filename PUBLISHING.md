@@ -11,7 +11,7 @@ For each release:
 1. Update package.json, Cargo.toml, extension.toml, serverInfo.version in server/src/main.mjs, and RELEASE_NOTES.md to the same version. Update Cargo.lock with cargo check.
 2. Regenerate changed grammar sources and update the pinned grammar revision in extension.toml if needed.
 3. Run the local checks and push the release commit to main. Wait for CI to pass.
-4. Create and push a new version tag, such as v0.1.1. Do not move a published tag or replace a published server archive.
+4. Create and push a new version tag, such as v1.0.1. Do not move a published tag or replace a published server archive.
 5. The Release workflow repeats CI, packages the tested build, and publishes the archive and SHA256SUMS. No custom repository secrets are needed.
 
 ~~~fish
@@ -42,7 +42,7 @@ Download failures are shown through Zed's language-server installation status. C
 
 Zed requires workspace trust before starting a language server. Confirm trust only for projects you trust. A dev checkout previously used with a local file:// grammar repository can also retain that remote inside grammars/neon/.git. If dev installation fails with "compiling grammar 'neon'", check that this generated checkout's origin matches extension.toml; a fresh clone avoids this stale local state.
 
-## Verified 0.1.0 Candidate
+## 0.1.0 Verification Record
 
 Tested on October 11, 2026 with Zed 1.23.2 on macOS arm64:
 
@@ -72,7 +72,7 @@ After the release and exact-commit Zed checks pass, submit one PR to zed-industr
 ~~~toml
 [neon]
 submodule = "extensions/neon"
-version = "0.1.0"
+version = "1.0.0"
 ~~~
 
 - Run pnpm sort-extensions in the registry repository.

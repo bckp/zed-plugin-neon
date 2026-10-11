@@ -1,6 +1,6 @@
-# NEON For Zed 0.1.0
+# NEON For Zed 1.0.0
 
-Initial NEON language support for Zed:
+NEON language support for the initial Zed registry submission:
 
 - File detection, Tree-sitter highlighting, brackets, and basic indentation.
 - Navigation through includes, services, PHP classes and methods, and parameters.

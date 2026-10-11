@@ -44,7 +44,7 @@ On first use, the extension downloads the matching navigation server from this r
 
 The installed plugin needs no npm or PHP installation. It uses Node from the worktree or Zed's managed Node runtime. The first server installation needs internet access and permission to download from github.com. The navigation server runs locally over LSP stdio, not on GitHub.
 
-The extension is ready for registry submission but is not yet listed in the Zed extension registry. Version 0.1.0 was installed from a clean public checkout and tested in Zed 1.23.2 on macOS. See [PUBLISHING.md](PUBLISHING.md) for the verification record and submission process.
+The extension is not yet listed in the Zed extension registry. See [PUBLISHING.md](PUBLISHING.md) for release verification records and the submission process.
 
 ## Development
 
