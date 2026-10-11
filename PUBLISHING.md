@@ -42,6 +42,20 @@ Download failures are shown through Zed's language-server installation status. C
 
 Zed requires workspace trust before starting a language server. Confirm trust only for projects you trust. A dev checkout previously used with a local file:// grammar repository can also retain that remote inside grammars/neon/.git. If dev installation fails with "compiling grammar 'neon'", check that this generated checkout's origin matches extension.toml; a fresh clone avoids this stale local state.
 
+## 1.0.0 Verification Record
+
+Tested on October 11, 2026 with Zed 1.23.2 on macOS arm64:
+
+- Public candidate commit: 7e798193f38d300312c654189823d691502cb525, present on main and tagged v1.0.0.
+- [CI run](https://github.com/bckp/zed-plugin-neon/actions/runs/38138718355) and [Release workflow](https://github.com/bckp/zed-plugin-neon/actions/runs/38138946953) passed.
+- [GitHub Release](https://github.com/bckp/zed-plugin-neon/releases/tag/v1.0.0) contains neon-navigation-1.0.0.tar.gz and SHA256SUMS. Archive SHA-256: dcde7cbc00b46a20bd7a478a798dab4928b4cd5640b14e18d43746a184cee624.
+- A clean public checkout installed as a dev extension without pnpm install or local server build artifacts. Zed selected NEON and highlighted the example configuration.
+- Zed downloaded and started server 1.0.0 from its extension working directory. All 12 required files matched the manifest's SHA-256 hashes.
+- Go to Definition opened an included NEON file, a PHP class declaration, a service declaration, a parameter declaration, and a parameter-expanded include path.
+- The published archive passed SHA256SUMS verification and the standalone LSP smoke test after downloading and extraction.
+
+This verification used only synthetic examples and an isolated Zed profile. Registry acceptance is a separate step.
+
 ## 0.1.0 Verification Record
 
 Tested on October 11, 2026 with Zed 1.23.2 on macOS arm64:
