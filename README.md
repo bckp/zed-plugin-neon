@@ -19,20 +19,25 @@ The language server provides navigation. Completion, formatting, schema validati
 
 ## Install Locally
 
-This checkout is configured for /Users/bckp/Projects/vibecode/zed-plugin-neon.
+Clone the repository:
+
+~~~fish
+git clone https://github.com/bckp/zed-plugin-neon.git
+cd zed-plugin-neon
+~~~
 
 1. In Zed, run zed: install dev extension.
-2. Select this directory.
+2. Select the cloned zed-plugin-neon directory.
 3. Open examples/demo/config.neon.
 4. Use Go to Definition on Product/import-product.neon, @importer, or App\Service\ProductExporter.
 
 The examples/parameters/ project demonstrates parameter navigation. Open dev.neon for a single winning declaration, or shared.neon for separate dev and prod candidates.
 
-The grammar points to this local Git repository, branch main, with path = "tree-sitter-neon". The source grammar lives outside Zed's generated grammars/ directory. The branch must have a commit before installing.
+The grammar points to a pinned commit in the public GitHub repository, with path = "tree-sitter-neon". The source grammar lives outside Zed's generated grammars/ directory. Moving the checkout does not require changes to the manifest.
 
 The navigation server and its parser assets are bundled into the Rust extension. The installed plugin needs no npm installation; it uses Node from the worktree or Zed's managed Node runtime.
 
-If the checkout moves, update [grammars.neon].repository in extension.toml to its new file:// URL and reinstall the dev extension.
+Marketplace publication is in preparation. Before submission to the Zed registry, the bundled navigation server will be moved to a versioned downloadable release.
 
 ## Development
 
@@ -56,7 +61,11 @@ pnpm --filter tree-sitter-neon test
 pnpm run build
 ~~~
 
-Commit the generated grammar sources before rebuilding the dev extension, because Zed checks out the committed main revision. Rebuild the extension in Zed after changing server code or bundled assets.
+Commit and push the generated grammar sources, then update [grammars.neon].rev in extension.toml to that commit before rebuilding the dev extension. Zed loads the pinned grammar revision rather than uncommitted local changes.
+
+For offline grammar development, temporarily set [grammars.neon].repository to a file:// URL for your local checkout and rev to a committed local revision. Restore the public URL and pinned commit before publishing.
+
+Rebuild the extension in Zed after changing server code or bundled assets.
 
 ## Navigation Details
 

@@ -3,13 +3,13 @@ name = "NEON"
 version = "0.1.0"
 schema_version = 1
 authors = ["bckp"]
-description = "NEON syntax highlighting and navigation for includes, services, and PHP classes"
-repository = "https://github.com/bckp/zed-neon-plugin"
+description = "NEON syntax highlighting and navigation for includes, parameters, services, and PHP classes"
+repository = "https://github.com/bckp/zed-plugin-neon"
 languages = ["languages/neon"]
 
 [grammars.neon]
-repository = "file:///Users/bckp/Projects/vibecode/zed-plugin-neon"
-rev = "main"
+repository = "https://github.com/bckp/zed-plugin-neon"
+rev = "32c019c5b175d75fc2f46f5eacf35c66b57e17f5"
 path = "tree-sitter-neon"
 
 [language_servers.neon]
