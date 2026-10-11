@@ -40,6 +40,24 @@ Before submitting a release, install the exact candidate commit as a dev extensi
 
 Download failures are shown through Zed's language-server installation status. Check connectivity and extension download permissions, then restart the language server. Syntax highlighting does not depend on the server. Only downloaded files within the extension working directory are replaced during cache repair; older versions are retained for rollback.
 
+Zed requires workspace trust before starting a language server. Confirm trust only for projects you trust. A dev checkout previously used with a local file:// grammar repository can also retain that remote inside grammars/neon/.git. If dev installation fails with "compiling grammar 'neon'", check that this generated checkout's origin matches extension.toml; a fresh clone avoids this stale local state.
+
+## Verified 0.1.0 Candidate
+
+Tested on October 11, 2026 with Zed 1.23.2 on macOS arm64:
+
+- Public candidate commit: 0fede46961786b228bc53d7b8ed679481e66e84b, present on main and tagged v0.1.0.
+- [CI run](https://github.com/bckp/zed-plugin-neon/actions/runs/38135958756) and [Release workflow](https://github.com/bckp/zed-plugin-neon/actions/runs/38136080851) passed.
+- [GitHub Release](https://github.com/bckp/zed-plugin-neon/releases/tag/v0.1.0) contains neon-navigation-0.1.0.tar.gz and SHA256SUMS. Archive SHA-256: ccf34fc128f3908561860aeada49e7a290fddec28a02a91e2c9da4f83b7d8d4f.
+- A clean HTTPS checkout installed as a dev extension without pnpm install or local server build artifacts. Zed selected NEON and highlighted the example configuration.
+- Zed downloaded the released server into its extension working directory. All 12 required files matched the published manifest and SHA-256 hashes; the running server used that cache, not repository server files.
+- Go to Definition opened an included NEON file, a PHP class declaration, a service declaration, a parameter declaration, and a parameter-expanded include path.
+- Parameter hover showed the entry point and effective declaration without displaying its value.
+- Restarting the NEON language server reused the same cache files and navigation still worked. Offline cache behavior and corruption repair are also covered by the six Rust installer tests.
+- The actual published archive passed the standalone LSP smoke test after downloading and extraction.
+
+This verification used only the synthetic projects in examples/ and an isolated Zed profile. Registry submission remains a separate step; the extension has not been accepted into the registry yet.
+
 ## Registry Submission
 
 Follow the [Zed publishing prerequisites](https://zed.dev/docs/extensions/publishing/prerequisites) and [publishing guide](https://zed.dev/docs/extensions/publishing/publishing-guide).

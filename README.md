@@ -21,6 +21,8 @@ The language server provides navigation. Completion, formatting, schema validati
 
 ## Install Locally
 
+Dev installation compiles the extension, so Rust installed through rustup must be available. Zed installs the required WASM target and grammar build tools. Published registry installations do not need Rust.
+
 Clone the repository:
 
 ~~~fish
@@ -31,7 +33,8 @@ cd zed-plugin-neon
 1. In Zed, run zed: install dev extension.
 2. Select the cloned zed-plugin-neon directory.
 3. Open examples/demo/config.neon.
-4. Use Go to Definition on Product/import-product.neon, @importer, or App\Service\ProductExporter.
+4. If Zed asks, trust the example project to allow the local language server to start.
+5. Use Go to Definition on Product/import-product.neon, @importer, or App\Service\ProductExporter.
 
 The examples/parameters/ project demonstrates parameter navigation. Open dev.neon for a single winning declaration, or shared.neon for separate dev and prod candidates.
 
@@ -41,7 +44,7 @@ On first use, the extension downloads the matching navigation server from this r
 
 The installed plugin needs no npm or PHP installation. It uses Node from the worktree or Zed's managed Node runtime. The first server installation needs internet access and permission to download from github.com. The navigation server runs locally over LSP stdio, not on GitHub.
 
-The extension is ready for registry submission but is not yet listed in the Zed extension registry. See [PUBLISHING.md](PUBLISHING.md) for the release and submission process.
+The extension is ready for registry submission but is not yet listed in the Zed extension registry. Version 0.1.0 was installed from a clean public checkout and tested in Zed 1.23.2 on macOS. See [PUBLISHING.md](PUBLISHING.md) for the verification record and submission process.
 
 ## Development
 
