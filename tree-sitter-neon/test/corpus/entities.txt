@@ -1,0 +1,47 @@
+==================
+entities
+==================
+
+column: Column(type: int, nulls: yes)
+chain: Column(type: int) Field(id: 1)
+multiline: Column(
+	type: int
+	nulls: yes
+)
+
+---
+
+(source_file
+  (block_mapping_pair
+    key: (identifier)
+    value: (entity
+      name: (entity_name)
+      (entity_argument
+        key: (identifier)
+        value: (unquoted_string))
+      (entity_argument
+        key: (identifier)
+        value: (boolean))))
+  (block_mapping_pair
+    key: (identifier)
+    value: (entity_chain
+      (entity
+        name: (entity_name)
+        (entity_argument
+          key: (identifier)
+          value: (unquoted_string)))
+      (entity
+        name: (entity_name)
+        (entity_argument
+          key: (identifier)
+          value: (number)))))
+  (block_mapping_pair
+    key: (identifier)
+    value: (entity
+      name: (entity_name)
+      (entity_argument
+        key: (identifier)
+        value: (unquoted_string))
+      (entity_argument
+        key: (identifier)
+        value: (boolean)))))

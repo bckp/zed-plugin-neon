@@ -1,0 +1,39 @@
+==================
+comments and literals
+==================
+
+# this line will be ignored
+enabled: true
+disabled: no
+missing: null
+count: 12
+ratio: +1.2e-34
+hex: 0x7A
+date: 2016-06-03 19:00:00 +02:00 # inline comment
+
+---
+
+(source_file
+  (comment)
+  (block_mapping_pair
+    key: (identifier)
+    value: (boolean))
+  (block_mapping_pair
+    key: (identifier)
+    value: (boolean))
+  (block_mapping_pair
+    key: (identifier)
+    value: (null))
+  (block_mapping_pair
+    key: (identifier)
+    value: (number))
+  (block_mapping_pair
+    key: (identifier)
+    value: (number))
+  (block_mapping_pair
+    key: (identifier)
+    value: (number))
+  (block_mapping_pair
+    key: (identifier)
+    value: (date))
+  (comment))

@@ -1,0 +1,21 @@
+{
+  "name": "zed-plugin-neon",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test server/test/*.test.mjs"
+  },
+  "dependencies": {
+    "fast-glob": "3.3.3",
+    "vscode-languageserver": "9.0.1",
+    "vscode-languageserver-textdocument": "1.0.12",
+    "web-tree-sitter": "0.24.7"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "tree-sitter-wasms": "0.1.13"
+  }
+}

@@ -1,0 +1,17 @@
+# Synthetic project for testing NEON navigation.
+includes:
+    - Product/import-product.neon
+    - services.neon
+
+parameters:
+    configDir: Product
+    enabled: true
+    retries: 3
+    optional: null
+    tags: [one, two, three]
+
+services:
+    exporter:
+        factory: App\Service\ProductExporter(@importer)
+        setup:
+            - @importer::import()

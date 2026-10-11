@@ -1,0 +1,3 @@
+services:
+    importer: App\Service\ProductExporter()
+    consumer: App\Service\ProductExporter(@importer)

@@ -1,0 +1,30 @@
+{
+  "grammars": [
+    {
+      "name": "neon",
+      "camelcase": "Neon",
+      "scope": "source.neon",
+      "path": ".",
+      "file-types": [
+        "neon"
+      ],
+      "injection-regex": "^neon$"
+    }
+  ],
+  "metadata": {
+    "version": "0.0.1",
+    "license": "MIT",
+    "description": "Tree-sitter grammar for the NEON configuration format",
+    "links": {
+      "repository": "https://github.com/bckp/tree-sitter-neon"
+    }
+  },
+  "bindings": {
+    "c": true,
+    "go": true,
+    "node": true,
+    "python": true,
+    "rust": true,
+    "swift": true
+  }
+}

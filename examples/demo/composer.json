@@ -1,0 +1,4 @@
+{
+  "name": "example/neon-navigation",
+  "autoload": { "psr-4": { "App\\": "src/" } }
+}

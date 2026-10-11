@@ -1,0 +1,4 @@
+parameters:
+    configDir: Product
+
+includes: [%configDir%/import-product.neon]

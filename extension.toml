@@ -1,0 +1,17 @@
+id = "neon"
+name = "NEON"
+version = "0.1.0"
+schema_version = 1
+authors = ["bckp"]
+description = "NEON syntax highlighting and navigation for includes, services, and PHP classes"
+repository = "https://github.com/bckp/zed-neon-plugin"
+languages = ["languages/neon"]
+
+[grammars.neon]
+repository = "file:///Users/bckp/Projects/vibecode/zed-plugin-neon"
+rev = "main"
+path = "tree-sitter-neon"
+
+[language_servers.neon]
+name = "NEON Navigation"
+languages = ["NEON"]

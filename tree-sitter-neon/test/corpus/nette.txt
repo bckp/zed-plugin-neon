@@ -1,0 +1,59 @@
+==================
+Nette paths and services
+==================
+
+parameters:
+    appDir: %rootDir%/app
+includes:
+    - %appDir%/config.neon
+services!:
+    manager: App\Model\UserManager(@dependency)
+
+---
+
+(source_file
+  (block_mapping_pair key: (identifier))
+  (block_mapping_pair key: (identifier) value: (unquoted_string))
+  (block_mapping_pair key: (identifier))
+  (block_sequence_item (unquoted_string))
+  (block_mapping_pair key: (identifier))
+  (block_mapping_pair
+    key: (identifier)
+    value: (entity
+      name: (entity_name)
+      (unquoted_string))))
+
+==================
+Newlines around inline commas
+==================
+
+numbers: [1
+,
+2]
+decimals: [.1, -.1, 1., 1.e1]
+
+---
+
+(source_file
+  (block_mapping_pair
+    key: (identifier)
+    value: (inline_sequence (number) (number)))
+  (block_mapping_pair
+    key: (identifier)
+    value: (inline_sequence (number) (number) (number) (number))))
+
+==================
+Quotes inside multiline content
+==================
+
+text: """
+    multi"""
+    lines'''
+    """
+
+---
+
+(source_file
+  (block_mapping_pair
+    key: (identifier)
+    value: (multiline_string (triple_double_quote_string))))

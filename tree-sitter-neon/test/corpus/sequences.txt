@@ -1,0 +1,44 @@
+==================
+block sequences
+==================
+
+- Cat
+- Dog
+- Goldfish
+
+---
+
+(source_file
+  (block_sequence_item
+    (unquoted_string))
+  (block_sequence_item
+    (unquoted_string))
+  (block_sequence_item
+    (unquoted_string)))
+
+==================
+sequence of mappings
+==================
+
+- name: John
+  age: 35
+- name: Peter
+  age: 28
+
+---
+
+(source_file
+  (block_sequence_item
+    (block_mapping_pair
+      key: (identifier)
+      value: (unquoted_string)))
+  (block_mapping_pair
+    key: (identifier)
+    value: (number))
+  (block_sequence_item
+    (block_mapping_pair
+      key: (identifier)
+      value: (unquoted_string)))
+  (block_mapping_pair
+    key: (identifier)
+    value: (number)))

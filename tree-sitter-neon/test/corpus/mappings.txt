@@ -1,0 +1,55 @@
+==================
+block mappings
+==================
+
+street: 742 Evergreen Terrace
+city: Springfield
+country: USA
+date.timezone = Europe/Prague
+
+---
+
+(source_file
+  (block_mapping_pair
+    key: (identifier)
+    value: (unquoted_string))
+  (block_mapping_pair
+    key: (identifier)
+    value: (unquoted_string))
+  (block_mapping_pair
+    key: (identifier)
+    value: (unquoted_string))
+  (block_mapping_pair
+    key: (identifier)
+    value: (unquoted_string)))
+
+==================
+nested mappings
+==================
+
+php:
+	date.timezone: Europe/Prague
+	zlib.output_compression: true
+database:
+	driver: mysql
+	username: root
+
+---
+
+(source_file
+  (block_mapping_pair
+    key: (identifier))
+  (block_mapping_pair
+    key: (identifier)
+    value: (unquoted_string))
+  (block_mapping_pair
+    key: (identifier)
+    value: (boolean))
+  (block_mapping_pair
+    key: (identifier))
+  (block_mapping_pair
+    key: (identifier)
+    value: (unquoted_string))
+  (block_mapping_pair
+    key: (identifier)
+    value: (unquoted_string)))

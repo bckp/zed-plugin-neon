@@ -1,0 +1,6 @@
+packages:
+  - tree-sitter-neon
+
+allowBuilds:
+  tree-sitter-cli: true
+  esbuild: true

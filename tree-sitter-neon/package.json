@@ -1,0 +1,19 @@
+{
+  "name": "tree-sitter-neon",
+  "version": "0.0.1",
+  "description": "Tree-sitter grammar for the NEON configuration format",
+  "license": "MIT",
+  "main": "bindings/node",
+  "keywords": [
+    "tree-sitter",
+    "neon",
+    "parser"
+  ],
+  "scripts": {
+    "generate": "tree-sitter generate",
+    "test": "tree-sitter test"
+  },
+  "devDependencies": {
+    "tree-sitter-cli": "^0.24.0"
+  }
+}

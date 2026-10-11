@@ -1,0 +1,44 @@
+==================
+quoted strings
+==================
+
+- A unquoted string in NEON
+- 'A single quote '' inside a single-quoted string'
+- "A double quote \" and \u00A9"
+
+---
+
+(source_file
+  (block_sequence_item
+    (unquoted_string))
+  (block_sequence_item
+    (single_quote_string))
+  (block_sequence_item
+    (double_quote_string
+      (escape_sequence)
+      (escape_sequence))))
+
+==================
+multiline strings
+==================
+
+single: '''
+	first line
+		second line
+	third line
+	'''
+double: """
+	Copyright \u00A9
+	"""
+
+---
+
+(source_file
+  (block_mapping_pair
+    key: (identifier)
+    value: (multiline_string
+      (triple_single_quote_string)))
+  (block_mapping_pair
+    key: (identifier)
+    value: (multiline_string
+      (triple_double_quote_string))))

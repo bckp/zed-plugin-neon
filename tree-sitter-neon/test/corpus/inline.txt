@@ -1,0 +1,41 @@
+==================
+inline sequences and mappings
+==================
+
+pets: [Cat, Dog, Goldfish]
+address: {street: 742 Evergreen Terrace, city: Springfield, country: USA}
+jsonish: {"php": {"date.timezone": "Europe/Prague", "zlib.output_compression": true}}
+
+---
+
+(source_file
+  (block_mapping_pair
+    key: (identifier)
+    value: (inline_sequence
+      (unquoted_string)
+      (unquoted_string)
+      (unquoted_string)))
+  (block_mapping_pair
+    key: (identifier)
+    value: (inline_mapping
+      (inline_mapping_pair
+        key: (identifier)
+        value: (unquoted_string))
+      (inline_mapping_pair
+        key: (identifier)
+        value: (unquoted_string))
+      (inline_mapping_pair
+        key: (identifier)
+        value: (unquoted_string))))
+  (block_mapping_pair
+    key: (identifier)
+    value: (inline_mapping
+      (inline_mapping_pair
+        key: (double_quote_string)
+        value: (inline_mapping
+          (inline_mapping_pair
+            key: (double_quote_string)
+            value: (double_quote_string))
+          (inline_mapping_pair
+            key: (double_quote_string)
+            value: (boolean)))))))

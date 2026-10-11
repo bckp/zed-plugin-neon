@@ -1,0 +1,9 @@
+node_modules/
+target/
+extension.wasm
+.pnpm-store/
+grammars/
+*.dylib
+*.so
+*.dll
+.DS_Store
