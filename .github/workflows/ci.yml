@@ -2,8 +2,10 @@ name: CI
 
 on:
   push:
+    branches: ["**"]
   pull_request:
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
@@ -76,8 +78,30 @@ jobs:
       - name: Test bundled LSP over stdio
         run: pnpm run test:lsp
 
+      - name: Test extracted release package
+        run: pnpm run test:release
+
+      - name: Package navigation server
+        run: pnpm run package:server
+
       - name: Set up Rust
         run: rustup toolchain install stable --profile minimal --target wasm32-wasip2
 
-      - name: Build Zed extension
-        run: cargo +stable build --locked --release --target wasm32-wasip2
+      - name: Build Zed extension without bundled server files
+        run: |
+          mv server/assets "$RUNNER_TEMP/neon-server-assets"; or exit 1
+          mv server/dist "$RUNNER_TEMP/neon-server-js"; or exit 1
+          cargo +stable build --locked --release --target wasm32-wasip2
+
+      - name: Test installer and cache
+        run: cargo +stable test --locked
+
+      - name: Upload verified server package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: neon-navigation
+          path: |
+            dist/neon-navigation-*.tar.gz
+            dist/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 7

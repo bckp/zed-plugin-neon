@@ -8,7 +8,9 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "test": "node --test server/test/*.test.mjs",
-    "test:lsp": "node scripts/smoke-lsp.mjs"
+    "test:lsp": "node scripts/smoke-lsp.mjs",
+    "package:server": "node scripts/package-server.mjs",
+    "test:release": "node scripts/test-release.mjs"
   },
   "dependencies": {
     "fast-glob": "3.3.3",

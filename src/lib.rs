@@ -1,6 +1,9 @@
-use std::{fs, path::Path};
+mod install;
+
+use std::path::Path;
 use zed_extension_api::{self as zed, Command, LanguageServerId, Result, Worktree};
 
+const SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
 struct NeonExtension;
 
 impl zed::Extension for NeonExtension {
@@ -10,22 +13,35 @@ impl zed::Extension for NeonExtension {
 
     fn language_server_command(
         &mut self,
-        _id: &LanguageServerId,
+        id: &LanguageServerId,
         worktree: &Worktree,
     ) -> Result<Command> {
-        fs::create_dir_all("assets").map_err(|e| e.to_string())?;
-        for (name, bytes) in [
-            ("assets/tree-sitter.wasm", include_bytes!("../server/assets/tree-sitter.wasm").as_slice()),
-            ("assets/tree-sitter-neon.wasm", include_bytes!("../server/assets/tree-sitter-neon.wasm").as_slice()),
-            ("assets/tree-sitter-php.wasm", include_bytes!("../server/assets/tree-sitter-php.wasm").as_slice()),
-            ("neon-server.cjs", include_bytes!("../server/dist/neon-server.cjs").as_slice()),
-            ("neon-server.cjs.LEGAL.txt", include_bytes!("../server/dist/neon-server.cjs.LEGAL.txt").as_slice()),
-        ] {
-            if fs::read(name).ok().as_deref() != Some(bytes) {
-                fs::write(name, bytes).map_err(|e| e.to_string())?;
+        let server = install::ensure_server(Path::new("."), SERVER_VERSION, |staging| {
+            zed::set_language_server_installation_status(
+                id,
+                &zed::LanguageServerInstallationStatus::Downloading,
+            );
+            let url = format!("https://github.com/bckp/zed-plugin-neon/releases/download/v{SERVER_VERSION}/neon-navigation-{SERVER_VERSION}.tar.gz");
+            zed::download_file(&url, &staging.to_string_lossy(), zed::DownloadedFileType::GzipTar)
+                .map_err(|e| format!("Could not download NEON Navigation {SERVER_VERSION}. Check your connection and extension download permissions, then restart the language server: {e}"))
+        });
+        let server = match server {
+            Ok(server) => server,
+            Err(error) => {
+                zed::set_language_server_installation_status(
+                    id,
+                    &zed::LanguageServerInstallationStatus::Failed(error.clone()),
+                );
+                return Err(error);
             }
-        }
-        let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
+        };
+        zed::set_language_server_installation_status(
+            id,
+            &zed::LanguageServerInstallationStatus::None,
+        );
+        let server = std::env::current_dir()
+            .map_err(|e| e.to_string())?
+            .join(server);
         let node = match worktree.which("node") {
             Some(node) => node,
             None => zed::node_binary_path()?,
@@ -33,10 +49,13 @@ impl zed::Extension for NeonExtension {
         Ok(Command {
             command: node,
             args: vec![
-                cwd.join(Path::new("neon-server.cjs")).to_string_lossy().into_owned(),
-                "--stdio".to_string(),
-                "--assets-dir".to_string(),
-                cwd.join("assets").to_string_lossy().into_owned(),
+                server
+                    .join("neon-server.cjs")
+                    .to_string_lossy()
+                    .into_owned(),
+                "--stdio".into(),
+                "--assets-dir".into(),
+                server.join("assets").to_string_lossy().into_owned(),
             ],
             env: vec![],
         })

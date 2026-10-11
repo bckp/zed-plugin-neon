@@ -37,9 +37,11 @@ The examples/parameters/ project demonstrates parameter navigation. Open dev.neo
 
 The grammar points to a pinned commit in the public GitHub repository, with path = "tree-sitter-neon". The source grammar lives outside Zed's generated grammars/ directory. Moving the checkout does not require changes to the manifest.
 
-The navigation server and its parser assets are bundled into the Rust extension. The installed plugin needs no npm installation; it uses Node from the worktree or Zed's managed Node runtime.
+On first use, the extension downloads the matching navigation server from this repository's GitHub Releases. It verifies the version and SHA-256 hashes of the required files before installing the server in its own working directory. Later starts use the cache without checking GitHub; incomplete or corrupted downloads are repaired on the next start. Syntax highlighting remains available if the server cannot be downloaded.
 
-Marketplace publication is in preparation. Before submission to the Zed registry, the bundled navigation server will be moved to a versioned downloadable release.
+The installed plugin needs no npm or PHP installation. It uses Node from the worktree or Zed's managed Node runtime. The first server installation needs internet access and permission to download from github.com. The navigation server runs locally over LSP stdio, not on GitHub.
+
+The extension is ready for registry submission but is not yet listed in the Zed extension registry. See [PUBLISHING.md](PUBLISHING.md) for the release and submission process.
 
 ## Development
 
@@ -51,6 +53,8 @@ rustup target add wasm32-wasip2
 pnpm run build
 pnpm test
 pnpm run test:lsp
+pnpm run test:release
+cargo test --locked
 ~~~
 
 The build script finds wasi-sdk in Zed's extension cache. A different installation can be selected with WASI_SDK_PATH.
@@ -67,7 +71,7 @@ Commit and push the generated grammar sources, then update [grammars.neon].rev i
 
 For offline grammar development, temporarily set [grammars.neon].repository to a file:// URL for your local checkout and rev to a committed local revision. Restore the public URL and pinned commit before publishing.
 
-Rebuild the extension in Zed after changing server code or bundled assets.
+Local server changes are tested by pnpm run test:lsp and pnpm run test:release. A dev extension uses the published server version, just like an installed extension. Publish a new matching release to test an updated server through the default launcher.
 
 ## Continuous Integration
 
@@ -76,9 +80,11 @@ GitHub Actions runs on pushes and pull requests, and can also be started manuall
 - Navigation tests, including include graphs, services, PHP classes, and parameter overrides.
 - Tree-sitter grammar generation, committed parser consistency, and corpus tests.
 - A fresh parser and server build, followed by a real LSP stdio smoke test.
+- Release packaging, SHA-256 checksums, and navigation from the extracted archive.
+- Installer tests for cold cache, offline reuse, corruption, interrupted downloads, and version changes.
 - The Rust extension release build for wasm32-wasip2.
 
-CI uses Node.js 22, the pnpm version pinned in package.json, and WASI SDK 25 with a verified SHA-256 checksum. Project commands run in Fish. The workflow has read-only repository permissions and does not publish releases.
+CI uses Node.js 22, the pnpm version pinned in package.json, and WASI SDK 25 with a verified SHA-256 checksum. Project commands run in Fish. CI has read-only repository permissions. The separate Release workflow reuses CI and publishes the verified server archive only for version tags; only its publishing job receives release-write permission.
 
 ## Navigation Details
 
@@ -101,8 +107,10 @@ The highlighting grammar is deliberately permissive. Block nesting is reconstruc
 - languages/neon/: Zed language config and queries.
 - tree-sitter-neon/: grammar, generated C parser, and corpus tests.
 - server/src/: navigation language server.
-- server/assets/ and server/dist/: bundled runtime assets.
+- server/assets/ and server/dist/: build inputs for the server release package.
+- scripts/package-server.mjs: release archive and checksum generation.
 - src/lib.rs: Zed language server launcher.
+- src/install.rs: versioned download installation and cache validation.
 - examples/demo/: self-contained Nette-style navigation example.
 - examples/parameters/: ordered overrides and shared dev/prod parameter example.
 

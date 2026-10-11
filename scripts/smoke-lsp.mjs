@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 import assert from 'node:assert/strict';
+import { parseArgs } from 'node:util';
 import { createMessageConnection, StreamMessageReader, StreamMessageWriter } from 'vscode-languageserver/node.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -9,7 +10,9 @@ const demo = path.join(root, 'examples/demo');
 const parameters = path.join(root, 'examples/parameters');
 const uri = file => pathToFileURL(path.join(demo, file)).href;
 const parameterUri = file => pathToFileURL(path.join(parameters, file)).href;
-const child = spawn(process.execPath, [path.join(root, 'server/dist/neon-server.cjs'), '--stdio', '--assets-dir', path.join(root, 'server/assets')]);
+const { values } = parseArgs({ options: { 'server-dir': { type: 'string' } } });
+const server = values['server-dir'] ? path.resolve(values['server-dir']) : null;
+const child = spawn(process.execPath, [server ? path.join(server, 'neon-server.cjs') : path.join(root, 'server/dist/neon-server.cjs'), '--stdio', '--assets-dir', server ? path.join(server, 'assets') : path.join(root, 'server/assets')]);
 const connection = createMessageConnection(new StreamMessageReader(child.stdout), new StreamMessageWriter(child.stdin));
 child.stderr.on('data', data => process.stderr.write(data));
 connection.listen();
