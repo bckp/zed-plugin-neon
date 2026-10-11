@@ -1,4 +1,4 @@
-# Publishing NEON For Zed
+# Publishing NEON Language For Zed
 
 ## Server Releases
 
@@ -80,12 +80,12 @@ The repository is public, uses the MIT license, and provides the NEON grammar at
 
 After the release and exact-commit Zed checks pass, submit one PR to zed-industries/extensions:
 
-- Add https://github.com/bckp/zed-plugin-neon as the extensions/neon Git submodule, checked out at a tested commit present on main.
+- Add https://github.com/bckp/zed-plugin-neon as the extensions/neon-language Git submodule, checked out at a tested commit present on main.
 - Add this entry to extensions.toml, with the version matching extension.toml:
 
 ~~~toml
-[neon]
-submodule = "extensions/neon"
+[neon-language]
+submodule = "extensions/neon-language"
 version = "1.0.0"
 ~~~
 

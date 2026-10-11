@@ -1,5 +1,5 @@
-id = "neon"
-name = "NEON"
+id = "neon-language"
+name = "NEON Language"
 version = "1.0.0"
 schema_version = 1
 authors = ["bckp"]

@@ -1,4 +1,4 @@
-# NEON For Zed
+# NEON Language For Zed
 
 [![CI](https://github.com/bckp/zed-plugin-neon/actions/workflows/ci.yml/badge.svg)](https://github.com/bckp/zed-plugin-neon/actions/workflows/ci.yml)
 
