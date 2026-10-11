@@ -1,0 +1,7 @@
+includes:
+    - base.neon
+    - shared.neon
+
+parameters:
+    outputDir: build/prod
+    mail: {port: 2500}

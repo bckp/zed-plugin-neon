@@ -1,0 +1,4 @@
+parameters:
+    outputDir: build/unrelated
+services:
+    worker: SyntheticWorker(%outputDir%)

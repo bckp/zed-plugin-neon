@@ -17747,6 +17747,71 @@ var import_node_path = __toESM(require("node:path"), 1);
 var import_node_url = require("node:url");
 var import_fast_glob = __toESM(require_out4(), 1);
 var import_web_tree_sitter = __toESM(require_tree_sitter(), 1);
+
+// server/src/parameters.mjs
+function* placeholders(text) {
+  for (const match of text.matchAll(/%([\w.-]*)%/g)) {
+    yield { name: match[1], index: match.index, length: match[0].length };
+  }
+}
+function uniqueOrigins(origins) {
+  const seen = /* @__PURE__ */ new Set();
+  return origins.filter((origin) => {
+    const key = origin.uri + ":" + origin.start;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+function mergeParameters(base, incoming) {
+  if (!base || incoming.replace || base.kind !== "array" || incoming.kind !== "array") return incoming;
+  const children = new Map(base.children);
+  let nextIndex = Math.max(-1, ...[...children.keys()].filter((key) => /^(0|[1-9]\d*)$/.test(key)).map(Number)) + 1;
+  for (const [key, value] of incoming.children) {
+    if (/^(0|-?[1-9]\d*)$/.test(key)) children.set(String(nextIndex++), value);
+    else children.set(key, mergeParameters(children.get(key), value));
+  }
+  return { ...incoming, children, origins: uniqueOrigins([...base.origins, ...incoming.origins]) };
+}
+function findParameter(parameters, name2, seen = /* @__PURE__ */ new Set()) {
+  if (seen.has(name2)) return null;
+  seen.add(name2);
+  const keys = name2.split(".");
+  let current = parameters;
+  for (let index = 0; index < keys.length; index++) {
+    if (current?.kind !== "array") {
+      if (seen.has(current)) return null;
+      seen.add(current);
+      const alias = typeof current?.value === "string" && /^%([\w.-]+)%$/.exec(current.value);
+      return alias ? findParameter(parameters, alias[1] + "." + keys.slice(index).join("."), seen) : null;
+    }
+    current = current.children.get(keys[index]);
+    if (!current) return null;
+  }
+  return current;
+}
+function expandParameters(text, parameters, resolving = /* @__PURE__ */ new Set()) {
+  let result = "";
+  let offset = 0;
+  for (const placeholder of placeholders(text)) {
+    result += text.slice(offset, placeholder.index);
+    offset = placeholder.index + placeholder.length;
+    if (!placeholder.name) {
+      result += "%";
+      continue;
+    }
+    if (resolving.has(placeholder.name)) return null;
+    const parameter = findParameter(parameters, placeholder.name);
+    if (parameter?.kind !== "value") return null;
+    const value = parameter.value;
+    const expanded = typeof value === "string" ? expandParameters(value, parameters, /* @__PURE__ */ new Set([...resolving, placeholder.name])) : value === null || value === false ? "" : value === true ? "1" : String(value);
+    if (expanded === null) return null;
+    result += expanded;
+  }
+  return result + text.slice(offset);
+}
+
+// server/src/workspace.mjs
 var ignore = ["**/.git/**", "**/node_modules/**", "**/vendor/**", "**/target/**", "**/grammars/**", "**/temp/**", "**/cache/**"];
 var scalarTypes = /* @__PURE__ */ new Set(["unquoted_string", "single_quote_string", "double_quote_string", "entity_name"]);
 var normalizeClass = (name2) => name2.replace(/^\\/, "").toLowerCase();
@@ -17791,7 +17856,7 @@ function tokenOf(node, document2) {
 }
 function indentAt(node, text) {
   const lineStart = text.lastIndexOf("\n", node.startIndex - 1) + 1;
-  const leading = text.slice(lineStart, node.startIndex).match(/^[ \t]*/)[0];
+  const leading = text.slice(lineStart, node.startIndex);
   let indent = 0;
   for (const character of leading) indent += character === "	" ? 4 - indent % 4 : 1;
   return indent;
@@ -17837,13 +17902,55 @@ function serviceReference(value) {
   const match = /^@([^@:\s()]+)(?:::(\w+))?$/.exec(value);
   return match ? { kind: "service", name: match[1], method: match[2] } : null;
 }
+function parameterData(record, document2, uri, text, declarations) {
+  const build = (item, name2) => {
+    const origin = name2 ? { name: name2, uri, ...tokenOf(item.key ?? item.node, document2) } : null;
+    if (origin && item.key) declarations.push(origin);
+    const origins = origin ? [origin] : [];
+    const replace = item.name?.endsWith("!") ?? false;
+    const children = /* @__PURE__ */ new Map();
+    let records = item.children;
+    if (item.value?.type === "inline_sequence") {
+      records = item.value.namedChildren.filter((node) => node.type !== "comment").map((node) => ({
+        node,
+        value: node,
+        children: [],
+        name: null
+      }));
+    }
+    if (records.length || ["inline_sequence", "inline_mapping"].includes(item.value?.type)) {
+      let index = 0;
+      for (const child of records) {
+        const key = child.sequence ? String(index++) : child.name?.replace(/!$/, "") ?? String(index++);
+        if (/^(0|[1-9]\d*)$/.test(key)) index = Math.max(index, Number(key) + 1);
+        const qualified = name2 ? name2 + "." + key : key;
+        const keyIndent = child.key ? indentAt(child.key, text) : child.indent;
+        const entry = child.sequence && child.key ? { node: child.node, children: child.value ? [{ ...child, sequence: false, children: [] }, ...child.children] : [
+          { ...child, sequence: false, children: child.children.filter((item2) => item2.indent > keyIndent) },
+          ...child.children.filter((item2) => item2.indent <= keyIndent)
+        ] } : child;
+        const nested = entry.value?.type === "inline_mapping" && !entry.children.length ? { ...entry, children: entry.value.namedChildren.filter((node) => node.type === "inline_mapping_pair").map((node) => recordOf(node, text)) } : entry;
+        children.set(key, build(nested, qualified));
+      }
+      return { kind: "array", children, origins, replace };
+    }
+    let value = valueOf(item.value);
+    if (item.value?.type === "boolean") value = /^(true|yes|on)$/i.test(value);
+    else if (item.value?.type === "null") value = null;
+    else if (item.value?.type === "number") value = Number(value.replace(/_/g, ""));
+    return { kind: "value", value, origins, replace };
+  };
+  return build(record, "");
+}
 function parseNeon(uri, text, parser) {
   const document2 = TextDocument.create(uri, "neon", 0, text);
   const tree = parser.parse(text);
   const records = blockRecords(tree, text);
   const includes = [];
   const services = [];
-  const parameters = {};
+  let parameters = { kind: "array", children: /* @__PURE__ */ new Map(), origins: [] };
+  const parameterDeclarations = [];
+  const parameterReferences = [];
   const references = [];
   for (const record of records) {
     const section = record.name?.replace(/!$/, "");
@@ -17854,15 +17961,7 @@ function parseNeon(uri, text, parser) {
       }
     }
     if (section === "parameters") {
-      const collect = (children, prefix = "") => {
-        for (const child of children) {
-          if (!child.name) continue;
-          const name2 = prefix + child.name;
-          if (child.value && scalarTypes.has(child.value.type)) parameters[name2] = valueOf(child.value);
-          if (child.children.length) collect(child.children, name2 + ".");
-        }
-      };
-      collect(record.children);
+      parameters = mergeParameters(parameters, parameterData(record, document2, uri, text, parameterDeclarations));
     }
     if (section === "services") {
       for (const child of record.children) {
@@ -17885,6 +17984,21 @@ function parseNeon(uri, text, parser) {
     }
   }
   for (const node of walk(tree.rootNode)) {
+    if (scalarTypes.has(node.type) || ["multiline_string", "identifier"].includes(node.type)) {
+      for (const placeholder of placeholders(node.text)) {
+        if (!placeholder.name) continue;
+        const start2 = node.startIndex + placeholder.index;
+        const end = start2 + placeholder.length;
+        parameterReferences.push({
+          kind: "parameter",
+          name: placeholder.name,
+          uri,
+          start: start2,
+          end,
+          range: { start: document2.positionAt(start2), end: document2.positionAt(end) }
+        });
+      }
+    }
     if (!scalarTypes.has(node.type)) continue;
     const key = node.parent?.childForFieldName("key");
     if (key?.id === node.id) continue;
@@ -17892,7 +18006,7 @@ function parseNeon(uri, text, parser) {
     const reference = serviceReference(value) ?? classReference(value, node.type === "entity_name");
     if (reference) references.push({ ...reference, uri, ...tokenOf(node, document2) });
   }
-  return { uri, text, document: document2, tree, records, includes, services, parameters, references };
+  return { uri, text, document: document2, tree, records, includes, services, parameters, parameterDeclarations, parameterReferences, references };
 }
 var Workspace = class _Workspace {
   static async create(roots, assets2) {
@@ -17916,6 +18030,7 @@ var Workspace = class _Workspace {
     this.lastRefresh = 0;
     this.revision = 0;
     this.composer = [];
+    this.parameterScopes = /* @__PURE__ */ new Map();
   }
   update(uri, text) {
     this.open.set(uri, text);
@@ -17966,12 +18081,13 @@ var Workspace = class _Workspace {
     const active = /* @__PURE__ */ new Set([...paths.map(fileUri), ...this.open.keys()]);
     for (const uri of active) this.loadNeon(uri);
     this.edges = [];
-    for (let pass = 0; pass < 4; pass++) {
+    for (let pass = 0; pass <= active.size; pass++) {
+      this.parameterScopes.clear();
       const edges = [];
       for (const uri of active) {
         const document2 = this.documents.get(uri);
         if (!document2) continue;
-        const parameters = this.parametersFor(uri);
+        const parameters = document2.includes.some((include) => include.expression.includes("%")) ? this.parametersFor(uri) : [];
         for (const include of document2.includes) {
           const target = this.resolvePath(uri, include.expression, parameters);
           edges.push({ ...include, target });
@@ -17985,6 +18101,7 @@ var Workspace = class _Workspace {
       this.edges = edges;
       if (same) break;
     }
+    this.parameterScopes.clear();
     for (const [uri, document2] of this.documents) {
       if (!active.has(uri) || !this.read(uri)) {
         document2.tree.delete();
@@ -18028,22 +18145,71 @@ var Workspace = class _Workspace {
   parametersFor(uri) {
     const file = filePath(uri);
     const root = this.roots.find((root2) => file && (file === root2 || file.startsWith(root2 + import_node_path.default.sep))) ?? this.roots[0];
-    const parameters = { rootDir: root };
-    if (import_node_fs.default.existsSync(import_node_path.default.join(root, "app"))) parameters.appDir = import_node_path.default.join(root, "app");
-    for (const member of this.component(uri).reverse()) Object.assign(parameters, this.documents.get(member)?.parameters);
-    return parameters;
+    const children = /* @__PURE__ */ new Map([["rootDir", { kind: "value", value: root, origins: [] }]]);
+    if (import_node_fs.default.existsSync(import_node_path.default.join(root, "app"))) children.set("appDir", { kind: "value", value: import_node_path.default.join(root, "app"), origins: [] });
+    const builtins = { kind: "array", children, origins: [] };
+    return this.parameterContexts(uri).map((context) => mergeParameters(builtins, { ...context.parameters, replace: false }));
   }
   resolvePath(uri, expression, parameters) {
-    let value = expression;
-    for (let pass = 0; pass < 8 && /%[^%]+%/.test(value); pass++) {
-      const previous = value;
-      value = value.replace(/%([^%]+)%/g, (match, name2) => parameters[name2] ?? match);
-      if (value === previous) break;
-    }
-    if (/%[^%]+%/.test(value) || !filePath(uri)) return null;
+    const candidates = expression.includes("%") ? parameters.map((context) => expandParameters(expression, context)) : [expression];
+    const value = candidates[0];
+    if (typeof value !== "string" || candidates.some((candidate) => candidate !== value) || !filePath(uri)) return null;
     const resolved = import_node_path.default.resolve(import_node_path.default.dirname(filePath(uri)), value);
     if (!isFile(resolved)) return null;
     return fileUri(resolved);
+  }
+  parameterContexts(uri) {
+    const ancestors = /* @__PURE__ */ new Set([uri]);
+    for (const member of ancestors) {
+      for (const edge of this.edges) {
+        if (edge.target === member) ancestors.add(edge.source);
+      }
+    }
+    const roots = [...ancestors].filter((member) => !this.edges.some((edge) => edge.target === member));
+    return (roots.length ? roots.sort() : [uri]).map((root) => {
+      if (this.parameterScopes.has(root)) return this.parameterScopes.get(root);
+      const context = { root, order: [], parameters: { kind: "array", children: /* @__PURE__ */ new Map(), origins: [] }, incomplete: false };
+      const visiting = /* @__PURE__ */ new Set();
+      const visit = (member) => {
+        const document2 = this.documents.get(member);
+        if (!document2 || visiting.has(member) || import_node_path.default.extname(filePath(member) ?? "") !== ".neon") {
+          context.incomplete = true;
+          return;
+        }
+        visiting.add(member);
+        for (const include of document2.includes) {
+          const edge = this.edges.find((edge2) => edge2.source === member && edge2.start === include.start);
+          if (edge?.target) visit(edge.target);
+          else context.incomplete = true;
+        }
+        visiting.delete(member);
+        context.order.push(member);
+        context.parameters = mergeParameters(context.parameters, document2.parameters);
+      };
+      visit(root);
+      this.parameterScopes.set(root, context);
+      return context;
+    });
+  }
+  parameterOrigins(uri, name2) {
+    return uniqueOrigins(this.parameterContexts(uri).flatMap((context) => findParameter(context.parameters, name2)?.origins ?? []));
+  }
+  parameterHover(uri, name2) {
+    const contexts = this.parameterContexts(uri);
+    const link = (origin) => "[" + this.label(origin.uri) + ":" + (origin.range.start.line + 1) + "](" + origin.uri + "#L" + (origin.range.start.line + 1) + ")";
+    const sections = contexts.map((context) => {
+      const active = findParameter(context.parameters, name2)?.origins ?? [];
+      const history = uniqueOrigins(context.order.flatMap((member) => this.documents.get(member)?.parameterDeclarations.filter((declaration) => declaration.name === name2) ?? []));
+      const lines = [
+        "Entry point: [" + this.label(context.root) + "](" + context.root + ")",
+        active.length ? "Effective declaration" + (active.length > 1 ? "s (merged)" : "") + ": " + active.map(link).join(", ") : "No declaration in this configuration."
+      ];
+      const overridden = history.filter((declaration) => !active.some((origin) => origin.uri === declaration.uri && origin.start === declaration.start));
+      if (overridden.length) lines.push("Overridden or removed: " + overridden.map(link).join(", "));
+      if (context.incomplete) lines.push("Partial static configuration: an include is unresolved, non-NEON, or cyclic.");
+      return lines.join("\n\n");
+    });
+    return { contents: { kind: "markdown", value: "Parameter %" + name2 + "%\n\n" + sections.join("\n\n---\n\n") } };
   }
   loadPhp(uri) {
     const source = this.read(uri);
@@ -18113,8 +18279,12 @@ var Workspace = class _Workspace {
     const document2 = this.documents.get(uri);
     if (!document2) return null;
     const offset = document2.document.offsetAt(position);
+    const parameter = document2.parameterReferences.find((item) => item.start <= offset && offset < item.end);
+    if (parameter) return parameter;
     const include = this.edges.find((edge) => edge.source === uri && contains(edge, offset));
     if (include) return { kind: "include", ...include };
+    const parameterDeclaration = document2.parameterDeclarations.find((item) => contains(item, offset));
+    if (parameterDeclaration) return { kind: "parameter", ...parameterDeclaration };
     const service = document2.services.find((item) => contains(item, offset));
     if (service) return { kind: "declaration", service };
     const reference = document2.references.find((item) => contains(item, offset));
@@ -18130,6 +18300,7 @@ var Workspace = class _Workspace {
     await this.refresh();
     const target = this.targetAt(uri, position);
     if (!target) return [];
+    if (target.kind === "parameter") return this.parameterOrigins(uri, target.name).map((item) => this.location(item));
     if (target.kind === "include") return target.target ? [{ uri: target.target, range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } } }] : [];
     if (target.kind === "declaration") return this.serviceClasses(uri, target.service).map((item) => this.location(item));
     if (target.kind === "service") {
@@ -18152,6 +18323,20 @@ var Workspace = class _Workspace {
       return this.edges.filter((edge) => edge.target && edge.target === target.target).map((edge) => ({ uri: edge.source, range: edge.range }));
     }
     const documents2 = this.component(uri).map((member) => this.documents.get(member)).filter(Boolean);
+    if (target.kind === "parameter") {
+      const origins = this.parameterOrigins(uri, target.name);
+      if (!origins.length) return [];
+      const matches = (candidate) => {
+        const resolved = this.parameterOrigins(candidate.uri, candidate.name);
+        return resolved.length && (candidate.name === target.name || resolved.some((item) => origins.some((origin) => origin.uri === item.uri && origin.start === item.start)));
+      };
+      const locations = documents2.flatMap((document2) => document2.parameterReferences.filter(matches).map((item) => this.location(item)));
+      if (includeDeclaration) {
+        const declarations = documents2.flatMap((document2) => document2.parameterDeclarations.filter((item) => item.name === target.name));
+        locations.push(...uniqueOrigins([...origins, ...declarations]).map((item) => this.location(item)));
+      }
+      return locations;
+    }
     if (["service", "declaration"].includes(target.kind)) {
       const name2 = target.kind === "declaration" ? target.service.id : target.name;
       const locations = documents2.flatMap((document2) => document2.references.filter((item) => item.kind === "service" && item.name === name2).map((item) => this.location(item)));
@@ -18177,6 +18362,7 @@ var Workspace = class _Workspace {
     await this.refresh();
     const target = this.targetAt(uri, position);
     if (!target) return null;
+    if (target.kind === "parameter") return this.parameterHover(uri, target.name);
     let value;
     if (["include", "file"].includes(target.kind)) {
       if (!target.target) value = "Unresolved include: " + target.expression;

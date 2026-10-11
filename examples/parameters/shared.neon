@@ -1,0 +1,6 @@
+parameters:
+    alias: %outputDir%
+    mailer: %mail%
+
+services:
+    worker: SyntheticWorker(%outputDir%, %mail.host%, %retries%, %enabled%, %optional%, %tags%, %mailer.host%)

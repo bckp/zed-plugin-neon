@@ -4,6 +4,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import fg from 'fast-glob';
 import Parser from 'web-tree-sitter';
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import { expandParameters, findParameter, mergeParameters, placeholders, uniqueOrigins } from './parameters.mjs';
 
 const ignore = ['**/.git/**', '**/node_modules/**', '**/vendor/**', '**/target/**', '**/grammars/**', '**/temp/**', '**/cache/**'];
 const scalarTypes = new Set(['unquoted_string', 'single_quote_string', 'double_quote_string', 'entity_name']);
@@ -41,7 +42,7 @@ function tokenOf(node, document) {
 
 function indentAt(node, text) {
   const lineStart = text.lastIndexOf('\n', node.startIndex - 1) + 1;
-  const leading = text.slice(lineStart, node.startIndex).match(/^[ \t]*/)[0];
+  const leading = text.slice(lineStart, node.startIndex);
   let indent = 0;
   for (const character of leading) indent += character === '\t' ? 4 - indent % 4 : 1;
   return indent;
@@ -93,13 +94,58 @@ function serviceReference(value) {
   return match ? { kind: 'service', name: match[1], method: match[2] } : null;
 }
 
+function parameterData(record, document, uri, text, declarations) {
+  const build = (item, name) => {
+    const origin = name ? { name, uri, ...tokenOf(item.key ?? item.node, document) } : null;
+    if (origin && item.key) declarations.push(origin);
+    const origins = origin ? [origin] : [];
+    const replace = item.name?.endsWith('!') ?? false;
+    const children = new Map();
+    let records = item.children;
+    if (item.value?.type === 'inline_sequence') {
+      records = item.value.namedChildren.filter(node => node.type !== 'comment').map(node => ({
+        node, value: node, children: [], name: null,
+      }));
+    }
+    if (records.length || ['inline_sequence', 'inline_mapping'].includes(item.value?.type)) {
+      let index = 0;
+      for (const child of records) {
+        const key = child.sequence ? String(index++) : child.name?.replace(/!$/, '') ?? String(index++);
+        if (/^(0|[1-9]\d*)$/.test(key)) index = Math.max(index, Number(key) + 1);
+        const qualified = name ? name + '.' + key : key;
+        const keyIndent = child.key ? indentAt(child.key, text) : child.indent;
+        const entry = child.sequence && child.key
+          ? { node: child.node, children: child.value
+            ? [{ ...child, sequence: false, children: [] }, ...child.children]
+            : [{ ...child, sequence: false, children: child.children.filter(item => item.indent > keyIndent) },
+              ...child.children.filter(item => item.indent <= keyIndent)] }
+          : child;
+        // Inline array items can themselves contain mappings or arrays.
+        const nested = entry.value?.type === 'inline_mapping' && !entry.children.length
+          ? { ...entry, children: entry.value.namedChildren.filter(node => node.type === 'inline_mapping_pair').map(node => recordOf(node, text)) }
+          : entry;
+        children.set(key, build(nested, qualified));
+      }
+      return { kind: 'array', children, origins, replace };
+    }
+    let value = valueOf(item.value);
+    if (item.value?.type === 'boolean') value = /^(true|yes|on)$/i.test(value);
+    else if (item.value?.type === 'null') value = null;
+    else if (item.value?.type === 'number') value = Number(value.replace(/_/g, ''));
+    return { kind: 'value', value, origins, replace };
+  };
+  return build(record, '');
+}
+
 function parseNeon(uri, text, parser) {
   const document = TextDocument.create(uri, 'neon', 0, text);
   const tree = parser.parse(text);
   const records = blockRecords(tree, text);
   const includes = [];
   const services = [];
-  const parameters = {};
+  let parameters = { kind: 'array', children: new Map(), origins: [] };
+  const parameterDeclarations = [];
+  const parameterReferences = [];
   const references = [];
   for (const record of records) {
     const section = record.name?.replace(/!$/, '');
@@ -111,15 +157,7 @@ function parseNeon(uri, text, parser) {
       }
     }
     if (section === 'parameters') {
-      const collect = (children, prefix = '') => {
-        for (const child of children) {
-          if (!child.name) continue;
-          const name = prefix + child.name;
-          if (child.value && scalarTypes.has(child.value.type)) parameters[name] = valueOf(child.value);
-          if (child.children.length) collect(child.children, name + '.');
-        }
-      };
-      collect(record.children);
+      parameters = mergeParameters(parameters, parameterData(record, document, uri, text, parameterDeclarations));
     }
     if (section === 'services') {
       for (const child of record.children) {
@@ -137,6 +175,15 @@ function parseNeon(uri, text, parser) {
     }
   }
   for (const node of walk(tree.rootNode)) {
+    if (scalarTypes.has(node.type) || ['multiline_string', 'identifier'].includes(node.type)) {
+      for (const placeholder of placeholders(node.text)) {
+        if (!placeholder.name) continue;
+        const start = node.startIndex + placeholder.index;
+        const end = start + placeholder.length;
+        parameterReferences.push({ kind: 'parameter', name: placeholder.name, uri, start, end,
+          range: { start: document.positionAt(start), end: document.positionAt(end) } });
+      }
+    }
     if (!scalarTypes.has(node.type)) continue;
     const key = node.parent?.childForFieldName('key');
     if (key?.id === node.id) continue;
@@ -144,7 +191,7 @@ function parseNeon(uri, text, parser) {
     const reference = serviceReference(value) ?? classReference(value, node.type === 'entity_name');
     if (reference) references.push({ ...reference, uri, ...tokenOf(node, document) });
   }
-  return { uri, text, document, tree, records, includes, services, parameters, references };
+  return { uri, text, document, tree, records, includes, services, parameters, parameterDeclarations, parameterReferences, references };
 }
 
 export class Workspace {
@@ -170,6 +217,7 @@ export class Workspace {
     this.lastRefresh = 0;
     this.revision = 0;
     this.composer = [];
+    this.parameterScopes = new Map();
   }
 
   update(uri, text) { this.open.set(uri, text); this.invalidate(); }
@@ -214,13 +262,14 @@ export class Workspace {
     const active = new Set([...paths.map(fileUri), ...this.open.keys()]);
     for (const uri of active) this.loadNeon(uri);
     this.edges = [];
-    // A second pass resolves path parameters inherited through ordinary includes.
-    for (let pass = 0; pass < 4; pass++) {
+    // Resolve inherited path parameters against the ordered include graph.
+    for (let pass = 0; pass <= active.size; pass++) {
+      this.parameterScopes.clear();
       const edges = [];
       for (const uri of active) {
         const document = this.documents.get(uri);
         if (!document) continue;
-        const parameters = this.parametersFor(uri);
+        const parameters = document.includes.some(include => include.expression.includes('%')) ? this.parametersFor(uri) : [];
         for (const include of document.includes) {
           const target = this.resolvePath(uri, include.expression, parameters);
           edges.push({ ...include, target });
@@ -234,6 +283,7 @@ export class Workspace {
       this.edges = edges;
       if (same) break;
     }
+    this.parameterScopes.clear();
     for (const [uri, document] of this.documents) {
       if (!active.has(uri) || !this.read(uri)) {
         document.tree.delete();
@@ -275,23 +325,76 @@ export class Workspace {
   parametersFor(uri) {
     const file = filePath(uri);
     const root = this.roots.find(root => file && (file === root || file.startsWith(root + path.sep))) ?? this.roots[0];
-    const parameters = { rootDir: root };
-    if (fs.existsSync(path.join(root, 'app'))) parameters.appDir = path.join(root, 'app');
-    for (const member of this.component(uri).reverse()) Object.assign(parameters, this.documents.get(member)?.parameters);
-    return parameters;
+    const children = new Map([['rootDir', { kind: 'value', value: root, origins: [] }]]);
+    if (fs.existsSync(path.join(root, 'app'))) children.set('appDir', { kind: 'value', value: path.join(root, 'app'), origins: [] });
+    const builtins = { kind: 'array', children, origins: [] };
+    return this.parameterContexts(uri).map(context => mergeParameters(builtins, { ...context.parameters, replace: false }));
   }
 
   resolvePath(uri, expression, parameters) {
-    let value = expression;
-    for (let pass = 0; pass < 8 && /%[^%]+%/.test(value); pass++) {
-      const previous = value;
-      value = value.replace(/%([^%]+)%/g, (match, name) => parameters[name] ?? match);
-      if (value === previous) break;
-    }
-    if (/%[^%]+%/.test(value) || !filePath(uri)) return null;
+    const candidates = expression.includes('%') ? parameters.map(context => expandParameters(expression, context)) : [expression];
+    const value = candidates[0];
+    if (typeof value !== 'string' || candidates.some(candidate => candidate !== value) || !filePath(uri)) return null;
     const resolved = path.resolve(path.dirname(filePath(uri)), value);
     if (!isFile(resolved)) return null;
     return fileUri(resolved);
+  }
+
+  parameterContexts(uri) {
+    const ancestors = new Set([uri]);
+    for (const member of ancestors) {
+      for (const edge of this.edges) {
+        if (edge.target === member) ancestors.add(edge.source);
+      }
+    }
+    const roots = [...ancestors].filter(member => !this.edges.some(edge => edge.target === member));
+    return (roots.length ? roots.sort() : [uri]).map(root => {
+      if (this.parameterScopes.has(root)) return this.parameterScopes.get(root);
+      const context = { root, order: [], parameters: { kind: 'array', children: new Map(), origins: [] }, incomplete: false };
+      const visiting = new Set();
+      const visit = member => {
+        const document = this.documents.get(member);
+        if (!document || visiting.has(member) || path.extname(filePath(member) ?? '') !== '.neon') {
+          context.incomplete = true;
+          return;
+        }
+        visiting.add(member);
+        for (const include of document.includes) {
+          const edge = this.edges.find(edge => edge.source === member && edge.start === include.start);
+          if (edge?.target) visit(edge.target);
+          else context.incomplete = true;
+        }
+        visiting.delete(member);
+        context.order.push(member);
+        context.parameters = mergeParameters(context.parameters, document.parameters);
+      };
+      visit(root);
+      this.parameterScopes.set(root, context);
+      return context;
+    });
+  }
+
+  parameterOrigins(uri, name) {
+    return uniqueOrigins(this.parameterContexts(uri).flatMap(context => findParameter(context.parameters, name)?.origins ?? []));
+  }
+
+  parameterHover(uri, name) {
+    const contexts = this.parameterContexts(uri);
+    const link = origin => '[' + this.label(origin.uri) + ':' + (origin.range.start.line + 1) + '](' +
+      origin.uri + '#L' + (origin.range.start.line + 1) + ')';
+    const sections = contexts.map(context => {
+      const active = findParameter(context.parameters, name)?.origins ?? [];
+      const history = uniqueOrigins(context.order.flatMap(member =>
+        this.documents.get(member)?.parameterDeclarations.filter(declaration => declaration.name === name) ?? []));
+      const lines = ['Entry point: [' + this.label(context.root) + '](' + context.root + ')',
+        active.length ? 'Effective declaration' + (active.length > 1 ? 's (merged)' : '') + ': ' + active.map(link).join(', ')
+          : 'No declaration in this configuration.'];
+      const overridden = history.filter(declaration => !active.some(origin => origin.uri === declaration.uri && origin.start === declaration.start));
+      if (overridden.length) lines.push('Overridden or removed: ' + overridden.map(link).join(', '));
+      if (context.incomplete) lines.push('Partial static configuration: an include is unresolved, non-NEON, or cyclic.');
+      return lines.join('\n\n');
+    });
+    return { contents: { kind: 'markdown', value: 'Parameter %' + name + '%\n\n' + sections.join('\n\n---\n\n') } };
   }
 
   loadPhp(uri) {
@@ -366,8 +469,12 @@ export class Workspace {
     const document = this.documents.get(uri);
     if (!document) return null;
     const offset = document.document.offsetAt(position);
+    const parameter = document.parameterReferences.find(item => item.start <= offset && offset < item.end);
+    if (parameter) return parameter;
     const include = this.edges.find(edge => edge.source === uri && contains(edge, offset));
     if (include) return { kind: 'include', ...include };
+    const parameterDeclaration = document.parameterDeclarations.find(item => contains(item, offset));
+    if (parameterDeclaration) return { kind: 'parameter', ...parameterDeclaration };
     const service = document.services.find(item => contains(item, offset));
     if (service) return { kind: 'declaration', service };
     const reference = document.references.find(item => contains(item, offset));
@@ -383,6 +490,7 @@ export class Workspace {
     await this.refresh();
     const target = this.targetAt(uri, position);
     if (!target) return [];
+    if (target.kind === 'parameter') return this.parameterOrigins(uri, target.name).map(item => this.location(item));
     if (target.kind === 'include') return target.target ? [{ uri: target.target, range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } } }] : [];
     if (target.kind === 'declaration') return this.serviceClasses(uri, target.service).map(item => this.location(item));
     if (target.kind === 'service') {
@@ -407,6 +515,21 @@ export class Workspace {
       return this.edges.filter(edge => edge.target && edge.target === target.target).map(edge => ({ uri: edge.source, range: edge.range }));
     }
     const documents = this.component(uri).map(member => this.documents.get(member)).filter(Boolean);
+    if (target.kind === 'parameter') {
+      const origins = this.parameterOrigins(uri, target.name);
+      if (!origins.length) return [];
+      const matches = candidate => {
+        const resolved = this.parameterOrigins(candidate.uri, candidate.name);
+        return resolved.length && (candidate.name === target.name || resolved.some(item =>
+          origins.some(origin => origin.uri === item.uri && origin.start === item.start)));
+      };
+      const locations = documents.flatMap(document => document.parameterReferences.filter(matches).map(item => this.location(item)));
+      if (includeDeclaration) {
+        const declarations = documents.flatMap(document => document.parameterDeclarations.filter(item => item.name === target.name));
+        locations.push(...uniqueOrigins([...origins, ...declarations]).map(item => this.location(item)));
+      }
+      return locations;
+    }
     if (['service', 'declaration'].includes(target.kind)) {
       const name = target.kind === 'declaration' ? target.service.id : target.name;
       const locations = documents.flatMap(document => document.references.filter(item => item.kind === 'service' && item.name === name).map(item => this.location(item)));
@@ -435,6 +558,7 @@ export class Workspace {
     await this.refresh();
     const target = this.targetAt(uri, position);
     if (!target) return null;
+    if (target.kind === 'parameter') return this.parameterHover(uri, target.name);
     let value;
     if (['include', 'file'].includes(target.kind)) {
       if (!target.target) value = 'Unresolved include: ' + target.expression;

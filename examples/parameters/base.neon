@@ -1,0 +1,10 @@
+parameters:
+    outputDir: build/base
+    configFile: unrelated.neon
+    retries: 3
+    enabled: true
+    optional: null
+    tags: [one, two]
+    mail:
+        host: base.example
+        port: 2525

@@ -1,0 +1,11 @@
+includes:
+    - base.neon
+    - local.neon
+    - shared.neon
+
+parameters:
+    outputDir: build/dev
+    mail!: {port: 2600}
+    description: '%outputDir%/tmp'
+    escaped: '%%outputDir%%'
+# %outputDir% is not a reference inside a comment.

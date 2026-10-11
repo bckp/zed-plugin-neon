@@ -1,0 +1,8 @@
+includes:
+    - base.neon
+
+parameters:
+    outputDir: build/local
+    configFile: shared.neon
+    mail: {host: local.example}
+    tags: [three]

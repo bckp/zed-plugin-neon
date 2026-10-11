@@ -1,0 +1,4 @@
+includes: [base.neon]
+parameters!: {only: 42}
+services:
+    worker: SyntheticWorker(%outputDir%, %only%)
